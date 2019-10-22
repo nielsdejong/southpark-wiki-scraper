@@ -12,7 +12,7 @@ def main():
 
     node_map = character_list_scraper.parse_characters_list_page(charlist_url)
 
-    nodes_csv_header = ["character_id:ID", "name", "wiki_url", "image_url", "group_name", ":LABEL"]
+    nodes_csv_header = ["character_id:ID", "name", "wiki_url", "image_url", "group_name", "age", "gender", "full_name", "hair_color", ":LABEL"]
     relationships_csv_header = [":START_ID", ":TYPE", ":END_ID"]
 
     write_output('edges.csv', None, header=relationships_csv_header, mode="w")
@@ -21,6 +21,7 @@ def main():
     for i, row in enumerate(initial_node_map.values()):
         node_id = row[0]
         wiki_url = row[2]
+
         print(i, node_id, wiki_url)
 
         # URL's may be misformed, so we skip these cases.

@@ -37,6 +37,9 @@ class CharacterListScraper:
                 else:
                     wiki_url = ""
                 image_url = split_line[10]
+
+                # Up the resolution of the images
+                image_url = image_url.replace("?height=98", "?height=250")
                 name = split_line[14]
                 # If the node has a unique wiki page, we use the suffix of the URL.
                 node_id = wiki_url[35:len(wiki_url)]
@@ -47,8 +50,9 @@ class CharacterListScraper:
                 # Add the entry to our list.
                 if node_id not in node_map:
                     node_map[self.simple_format(node_id)] = [self.simple_format(node_id), name, wiki_url, image_url,
-                                                             current_category,
-                                                             self.simple_format(current_category_id) + ";Character"]
+                                                             current_category, "", "", "", "",
+                                                             self.simple_format(
+                                                                 current_category_id) + ";Character;Entity"]
 
         return node_map
 
@@ -62,5 +66,5 @@ class CharacterListScraper:
 
     @staticmethod
     def simple_format(string):
-        string = string.replace("%27","").replace("%22","").replace("-","_")
+        string = string.replace("%27", "").replace("%22", "").replace("-", "_")
         return re.sub('[\W]+', '', string)

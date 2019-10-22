@@ -1,8 +1,12 @@
 import re
 
+import inflect
+
 from charlist_scraper import CharacterListScraper
 
 WIKI_PREFIX = "https://wiki.southpark.cc.com"
+
+inflect_engine = inflect.engine()
 
 
 class CharacterPageScraper:
@@ -20,7 +24,10 @@ class CharacterPageScraper:
 
         last_rel = ""
         mode = ""
-        properties = [[self.simple_format(id), "FULL_NAME", full_name]]
+        node_map[self.simple_format(id)][7] = full_name
+        properties = []
+        # properties = [[self.simple_format(id), "HAS_FULL_NAME", self.simple_format("full_name_" + full_name)]]
+
         for line in lines:
             mode = self.determine_parse_mode(mode, line)
 
@@ -64,43 +71,105 @@ class CharacterPageScraper:
                     # If is does not, just use the name and replace all spaces by underscores.
                     other_node_id = other_wiki_url.replace(" ", "_")
 
-                if other_node_id != "":
+                if relationship == "HAS_AGE":
+                    node_map[self.simple_format(id)][5] = other_name
+                    return
+                elif relationship == "HAS_GENDER":
+                    node_map[self.simple_format(id)][6] = other_name
+                    return
+                elif relationship == "HAS_FULL_NAME":
+                    return
+                elif relationship == "HAS_HAIR_COLOR":
+                    node_map[self.simple_format(id)][8] = other_name
+                    return
+                elif self.simple_format(other_node_id) != "" and relationship != "":
                     properties.append([self.simple_format(id), relationship, self.simple_format(other_node_id)])
 
-                # Don't save these as they don't have pretty pictures
-                other_name_as_id = other_name.replace(" ", "_")
-                if other_name_as_id != "" and self.simple_format(other_node_id) not in node_map:
-                    node_map[self.simple_format(other_name_as_id)] = [self.simple_format(other_name_as_id), other_name,
-                                                                other_wiki_url, "", "", ""]
+                # if we already know the other node:
+                #   We add a node label based on the name of the relationship
+                if relationship is None:
+                    continue
+
+                new_other_node_label = relationship[3:].title().replace("_", "")
+                if other_node_id in node_map:
+                    other_node_existing_labels = node_map[other_node_id][9].split(";")
+                    if new_other_node_label not in other_node_existing_labels:
+                        node_map[other_node_id][9] += ";" + new_other_node_label
+
+                if other_node_id != "" and self.simple_format(other_node_id) not in node_map:
+                    node_map[self.simple_format(other_node_id)] = [self.simple_format(other_node_id), other_name,
+                                                                   other_wiki_url, "", "", "", "", "", "",
+                                                                   "Entity;" + new_other_node_label]
         return relationship
 
     def extract_relationships_from_sections(self, id, line, properties, relationship, node_map):
+        """
+
+        :param id:
+        :param line:
+        :param properties:
+        :param relationship: name of the section
+        :param node_map:
+        :return:
+        """
         if "\"mw-headline\"" in line:
             split_line = re.split('[><"]', line)
             relationship = self.convert_to_rel_syntax(split_line[8])
+            relationship_words = relationship.split("_")
+            if inflect_engine.singular_noun(relationship_words[-1]):
+                relationship_words[-1] = inflect.engine.singular_noun(inflect_engine, relationship_words[-1])
+                relationship = "_".join(relationship_words)
 
         if "class=\"character\"" in line:
             split_line = re.split('[><]', line)
+
+            # Determine name for other node
+            other_name = split_line[len(split_line) - 5]
+            other_name_as_id = self.simple_format(other_name.replace(" ", "_"))
+
+            # Determine wiki URL for other node
             other_wiki_url = line.split("href=\"")[1].split("\"")[0]
             if WIKI_PREFIX not in other_wiki_url:
                 other_wiki_url = WIKI_PREFIX + other_wiki_url
-            other_name = split_line[len(split_line) - 5]
-            other_image_url = line.split("src=\"")[1].split("\"")[0]
             if other_wiki_url == "":
                 other_wiki_url = other_name.replace(" ", "_")
-            other_node_id = other_wiki_url[35:len(other_wiki_url)]
-            # If the other node id is not a URL, just use the name and replace all spaces by underscores.
-            if other_node_id == "":
-                other_node_id = other_wiki_url.replace(" ", "_")
-            properties.append([self.simple_format(id), relationship, self.simple_format(other_node_id)])
-            other_name_as_id = self.simple_format(other_name.replace(" ", "_"))
 
-            # Weird case - when we have a previous node entry already without a picture, we add the picture.
-            if other_name_as_id in node_map and node_map[other_name_as_id][3] != "":
-                node_map[other_name_as_id][3] = other_image_url
+            if relationship == "HAS_FAMILY":
+                other_name_as_id = other_wiki_url.split("/")[-1]
 
-            if other_name_as_id != "" and self.simple_format(other_node_id) not in node_map:
-                node_map[other_name_as_id] = [other_name_as_id, other_name, other_wiki_url, other_image_url, "", ""]
+            # Determine image for other node
+            other_image_url = line.split("src=\"")[1].split("\"")[0]
+
+            # Up the resolution of the images
+            other_image_url = other_image_url.replace("?height=98", "?height=250")
+
+            if other_name_as_id != "":
+                properties.append([self.simple_format(id), relationship, other_name_as_id])
+
+            new_other_node_label = relationship[3:].title().replace("_", "")
+            # if the last word is plural, make it singular
+            if inflect_engine.singular_noun(relationship.split("_")[-1]):
+                try:
+                    new_other_node_label = inflect_engine.engine.singular_noun(new_other_node_label)
+                except AttributeError:
+                    print("Unable to convert to singular:", new_other_node_label)
+
+            # if we already know the other node:
+            #   when we have a previous node entry already without a picture, we add the picture.
+            #   We add a node label based on the name of the relationship
+            if other_name_as_id in node_map:
+                if node_map[other_name_as_id][3] == "":
+                    node_map[other_name_as_id][3] = other_image_url
+
+                # Other node should get label (relname).title().replace(" ","")
+                other_node_existing_labels = node_map[other_name_as_id][9].split(";")
+                if new_other_node_label not in other_node_existing_labels:
+                    node_map[other_name_as_id][9] += ";" + new_other_node_label
+
+                # If we don't know the other node:
+            if other_name_as_id != "" and other_name_as_id not in node_map:
+                node_map[other_name_as_id] = [other_name_as_id, other_name, other_wiki_url, other_image_url, "", "", "",
+                                              "", "", "Entity;" + new_other_node_label]
         return relationship
 
     def convert_to_rel_syntax(self, current_key):
@@ -118,5 +187,5 @@ class CharacterPageScraper:
 
     @staticmethod
     def simple_format(string):
-        string = string.replace("%27","").replace("%22","").replace("-","_")
+        string = string.replace("%27", "").replace("%22", "").replace("-", "_").replace("/", "_SLASH_")
         return re.sub('[\W]+', '', string)

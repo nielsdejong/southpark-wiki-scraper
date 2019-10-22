@@ -2,3 +2,9 @@ renamed rels: HAS_GROUP, HAS_CLOSE_FRIENDS, HAS_VOICED_BY
 
 
 Trey parker voices >200 characters!
+4654 nodes
+6960 relationships
+23106 properties
+
+MATCH (n:TheFourBoys)-[e]->(m)-[:HAS_GRADE]->(grade{name:"4th Grade"})
+RETURN n,e,m
