@@ -1,16 +1,12 @@
 import re
-
 import inflect
-
 from charlist_scraper import CharacterListScraper
 
 WIKI_PREFIX = "https://wiki.southpark.cc.com"
-
 inflect_engine = inflect.engine()
 
 
 class CharacterPageScraper:
-    unique_reltypes = {}
 
     def parse_character_page(self, id, url, node_map):
         soup = CharacterListScraper.get_and_parse_url(url)
@@ -26,7 +22,6 @@ class CharacterPageScraper:
         mode = ""
         node_map[self.simple_format(id)][7] = full_name
         properties = []
-        # properties = [[self.simple_format(id), "HAS_FULL_NAME", self.simple_format("full_name_" + full_name)]]
 
         for line in lines:
             mode = self.determine_parse_mode(mode, line)
@@ -37,9 +32,6 @@ class CharacterPageScraper:
             if mode == "info-box":
                 last_rel = self.extract_relationships_from_info_box(id, line, properties, last_rel, node_map)
 
-            if last_rel not in self.unique_reltypes:
-                self.unique_reltypes[last_rel] = ""
-                print(len(self.unique_reltypes), last_rel)
         return properties
 
     def extract_relationships_from_info_box(self, id, line, properties, relationship, node_map):
@@ -103,15 +95,7 @@ class CharacterPageScraper:
         return relationship
 
     def extract_relationships_from_sections(self, id, line, properties, relationship, node_map):
-        """
 
-        :param id:
-        :param line:
-        :param properties:
-        :param relationship: name of the section
-        :param node_map:
-        :return:
-        """
         if "\"mw-headline\"" in line:
             split_line = re.split('[><"]', line)
             relationship = self.convert_to_rel_syntax(split_line[8])
